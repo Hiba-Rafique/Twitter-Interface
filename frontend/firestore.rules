@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Companies collection - company-scoped access
+    match /companies/{companyId} {
+      // Allow read/write if user belongs to the company
+      allow read, write: if request.auth != null && 
+        belongsToCompany(companyId);
+      
+      // Posts subcollection - company-scoped
+      match /posts/{postId} {
+        // Allow read if user belongs to the company and post is not deleted
+        allow read: if request.auth != null && 
+          belongsToCompany(companyId) && 
+          resource.data.isDeleted == false;
+        
+        // Allow create if user belongs to the company
+        allow create: if request.auth != null && 
+          belongsToCompany(companyId) &&
+          request.auth.uid == resource.data.userId &&
+          request.auth.uid != null &&
+          resource.data.companyId == companyId &&
+          resource.data.userId == request.auth.uid;
+        
+        // Allow update if user owns the post and belongs to company
+        allow update: if request.auth != null && 
+          belongsToCompany(companyId) &&
+          resource.data.userId == request.auth.uid;
+        
+        // Allow delete (soft delete) if user owns the post
+        allow update: if request.auth != null && 
+          belongsToCompany(companyId) &&
+          resource.data.userId == request.auth.uid &&
+          request.writeFields.keys.hasAll(['isDeleted', 'updatedAt']);
+        
+        // Likes subcollection
+        match /likes/{userId} {
+          // Allow read if user belongs to company
+          allow read: if request.auth != null && belongsToCompany(companyId);
+          
+          // Allow users to create/delete their own likes
+          allow create, delete: if request.auth != null && 
+            belongsToCompany(companyId) &&
+            request.auth.uid == userId;
+        }
+        
+        // Comments subcollection
+        match /comments/{commentId} {
+          // Allow read if user belongs to company and comment is not deleted
+          allow read: if request.auth != null && 
+            belongsToCompany(companyId) && 
+            resource.data.isDeleted == false;
+          
+          // Allow create if user belongs to company
+          allow create: if request.auth != null && 
+            belongsToCompany(companyId) &&
+            request.auth.uid == resource.data.userId &&
+            resource.data.userId == request.auth.uid;
+          
+          // Allow update if user owns the comment
+          allow update: if request.auth != null && 
+            belongsToCompany(companyId) &&
+            resource.data.userId == request.auth.uid;
+          
+          // Comment likes subcollection
+          match /likes/{userId} {
+            // Allow read if user belongs to company
+            allow read: if request.auth != null && belongsToCompany(companyId);
+            
+            // Allow users to create/delete their own likes
+            allow create, delete: if request.auth != null && 
+              belongsToCompany(companyId) &&
+              request.auth.uid == userId;
+          }
+        }
+      }
+    }
+    
+    // Helper functions
+    function belongsToCompany(companyId) {
+      // Check if user belongs to the company
+      // This would typically check against a users collection or custom claims
+      return exists(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid));
+    }
+  }
+}
