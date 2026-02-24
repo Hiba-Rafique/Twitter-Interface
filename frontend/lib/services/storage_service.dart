@@ -196,14 +196,36 @@ class StorageService {
     if (key.isEmpty) return '';
 
     // Prefer backend proxy for local development (avoids R2 CORS issues).
+    // Backend defined in backend/node/server.js serves: GET /files/*
+    // Support both:
+    // - baseUrl == http://localhost:3000
+    // - baseUrl == http://localhost:3000/api/storage (legacy / misconfigured)
     final lowerBase = _baseUrl.toLowerCase();
     if (lowerBase.contains('localhost') || lowerBase.contains('127.0.0.1')) {
-      return '$_baseUrl/files/$key';
+      final normalized = _baseUrl.endsWith('/')
+          ? _baseUrl.substring(0, _baseUrl.length - 1)
+          : _baseUrl;
+
+      if (normalized.endsWith('/api/storage')) {
+        final root = normalized.substring(0, normalized.length - '/api/storage'.length);
+        return '$root/files/$key';
+      }
+
+      return '$normalized/files/$key';
     }
 
     // If baseUrl is set to a non-production host, prefer the backend proxy.
     if (_baseUrl.startsWith('http') && !_baseUrl.contains('api.twitter-interface.com')) {
-      return '$_baseUrl/files/$key';
+      final normalized = _baseUrl.endsWith('/')
+          ? _baseUrl.substring(0, _baseUrl.length - 1)
+          : _baseUrl;
+
+      if (normalized.endsWith('/api/storage')) {
+        final root = normalized.substring(0, normalized.length - '/api/storage'.length);
+        return '$root/files/$key';
+      }
+
+      return '$normalized/files/$key';
     }
 
     // Otherwise, prefer direct R2 URL when configured.

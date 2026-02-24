@@ -142,27 +142,20 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E3A8A),
-        title: Text(
-          'Company Feed',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 20,
-          ),
-        ),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        title: Text('Company Feed', style: Theme.of(context).appBarTheme.titleTextStyle),
         centerTitle: false,
-        elevation: 0,
+        elevation: Theme.of(context).appBarTheme.elevation ?? 0,
         actions: [
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.notifications_outlined, color: Color(0xFFE2E8F0)),
+            icon: Icon(Icons.notifications_outlined, color: Theme.of(context).appBarTheme.foregroundColor),
           ),
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.search, color: Color(0xFFE2E8F0)),
+            icon: Icon(Icons.search, color: Theme.of(context).appBarTheme.foregroundColor),
           ),
         ],
       ),
@@ -173,9 +166,9 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF334155), width: 1),
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Theme.of(context).dividerColor, width: 1),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,8 +181,8 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF3B82F6), Color(0xFF1E40AF)],
+                        gradient: LinearGradient(
+                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary.withOpacity(0.85)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -198,8 +191,8 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                       child: Center(
                         child: Text(
                           _getAvatarChar(widget.userId),
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary,
                             fontWeight: FontWeight.w600,
                             fontSize: 18,
                           ),
@@ -212,8 +205,8 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                       child: TextField(
                         controller: _postController,
                         maxLines: null,
-                        style: const TextStyle(
-                          color: Color(0xFFE2E8F0),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 16,
                         ),
                         decoration: const InputDecoration(
@@ -241,7 +234,7 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                           height: 100,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            color: const Color(0xFF334155),
+                            color: Theme.of(context).dividerColor,
                           ),
                           child: Stack(
                             children: [
@@ -263,12 +256,12 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                                     width: 24,
                                     height: 24,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF1E293B),
+                                      color: Theme.of(context).cardColor,
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.close,
-                                      color: Color(0xFFE2E8F0),
+                                      color: Theme.of(context).textTheme.bodyMedium?.color,
                                       size: 14,
                                     ),
                                   ),
@@ -284,8 +277,8 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                 // Action Buttons
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: const BoxDecoration(
-                    border: Border(top: BorderSide(color: Color(0xFF334155), width: 1)),
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: Theme.of(context).dividerColor, width: 1)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -300,8 +293,8 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                       ),
                       Container(
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF3B82F6), Color(0xFF1E40AF)],
+                          gradient: LinearGradient(
+                            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary.withOpacity(0.85)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -317,18 +310,18 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                           ),
                           child: _isPosting
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 16,
                                   height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.onPrimary),
                                   ),
                                 )
                               : const Text(
                                   'Post',
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: Theme.of(context).colorScheme.onPrimary,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
