@@ -106,31 +106,33 @@ class PostService {
     required String userId,
   }) async {
     try {
-      final postDoc = await _postsCollection.doc(postId).get();
-      if (!postDoc.exists) {
-        throw Exception('Post not found');
-      }
+      await _firestore.runTransaction((transaction) async {
+        final postRef = _postsCollection.doc(postId);
+        final postSnap = await transaction.get(postRef);
+        if (!postSnap.exists) throw Exception('Post not found');
 
-      final post = PostModel.fromFirestore(postDoc);
-      final likes = List<Like>.from(post.likes);
-      
-      // Check if user already liked the post
-      final existingLikeIndex = likes.indexWhere((like) => like.userId == userId);
-      
-      if (existingLikeIndex != -1) {
-        // Remove like
-        likes.removeAt(existingLikeIndex);
-      } else {
-        // Add like
-        likes.add(Like(
-          userId: userId,
-          createdAt: DateTime.now(),
-        ));
-      }
+        final post = PostModel.fromFirestore(postSnap);
+        final likes = List<Like>.from(post.likes);
 
-      await _postsCollection.doc(postId).update({
-        'likes': likes.map((like) => like.toJson()).toList(),
-        'updatedAt': Timestamp.now(),
+        final existingLikeIndex = likes.indexWhere((like) => like.userId == userId);
+
+        if (existingLikeIndex != -1) {
+          // Remove like
+          likes.removeAt(existingLikeIndex);
+          transaction.update(postRef, {
+            'likes': likes.map((l) => l.toJson()).toList(),
+            'likeCount': FieldValue.increment(-1),
+            'updatedAt': Timestamp.now(),
+          });
+        } else {
+          // Add like
+          likes.add(Like(userId: userId, createdAt: DateTime.now()));
+          transaction.update(postRef, {
+            'likes': likes.map((l) => l.toJson()).toList(),
+            'likeCount': FieldValue.increment(1),
+            'updatedAt': Timestamp.now(),
+          });
+        }
       });
     } catch (e) {
       throw Exception('Failed to toggle like: $e');
@@ -151,9 +153,16 @@ class PostService {
         createdAt: DateTime.now(),
       );
 
-      await _postsCollection.doc(postId).update({
-        'comments': FieldValue.arrayUnion([comment.toJson()]),
-        'updatedAt': Timestamp.now(),
+      await _firestore.runTransaction((transaction) async {
+        final postRef = _postsCollection.doc(postId);
+        final postSnap = await transaction.get(postRef);
+        if (!postSnap.exists) throw Exception('Post not found');
+
+        transaction.update(postRef, {
+          'comments': FieldValue.arrayUnion([comment.toJson()]),
+          'commentCount': FieldValue.increment(1),
+          'updatedAt': Timestamp.now(),
+        });
       });
     } catch (e) {
       throw Exception('Failed to add comment: $e');

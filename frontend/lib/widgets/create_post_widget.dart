@@ -67,7 +67,8 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
     try {
       List<String> imageUrls = [];
       
-      // Upload images if any
+      // Upload images if any. If an upload fails, skip that image but continue.
+      int failedUploads = 0;
       for (int i = 0; i < _selectedImages.length; i++) {
         final result = await StorageService.instance.uploadFile(
           _selectedImages[i],
@@ -75,7 +76,12 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
           folder: 'posts',
           contentType: 'image/jpeg',
         );
-        imageUrls.add(result.key);
+        if (result.success && result.key.isNotEmpty) {
+          imageUrls.add(result.key);
+        } else {
+          failedUploads++;
+          debugPrint('[CreatePostWidget] Image upload failed: ${result.message}');
+        }
       }
 
       // Create post
@@ -104,13 +110,23 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
         Navigator.pop(context);
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Post created successfully!'),
-          backgroundColor: Colors.green[400],
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (failedUploads > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Post created; $failedUploads image(s) failed to upload'),
+            backgroundColor: Colors.orange[700],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Post created successfully!'),
+            backgroundColor: Colors.green[400],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() {

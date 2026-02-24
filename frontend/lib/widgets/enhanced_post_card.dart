@@ -326,7 +326,7 @@ class _EnhancedPostCardState extends State<EnhancedPostCard>
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: CachedNetworkImage(
-          imageUrl: 'https://storage.buildersolve.com/${imageUrls[0]}',
+          imageUrl: 'https://api.twitter-interface.com/storage/${imageUrls[0]}',
           fit: BoxFit.cover,
           height: widget.isWeb ? 300 : 200,
           width: double.infinity,
@@ -365,7 +365,7 @@ class _EnhancedPostCardState extends State<EnhancedPostCard>
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: CachedNetworkImage(
-            imageUrl: 'https://storage.buildersolve.com/${imageUrls[index]}',
+            imageUrl: 'https://api.twitter-interface.com/storage/${imageUrls[index]}',
             fit: BoxFit.cover,
             placeholder: (context, url) => Container(
               color: Theme.of(context).colorScheme.surfaceVariant,

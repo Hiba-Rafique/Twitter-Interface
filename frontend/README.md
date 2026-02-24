@@ -32,6 +32,39 @@ lib/
 2. **Firebase**: Configure Firebase for your project
 3. **Storage Service**: The app uses a Node.js backend API for Cloudflare R2 storage
 
+### Firebase credentials (local development)
+
+This repository intentionally does not include Firebase credential files. Add the following files locally when you run the app on devices:
+
+- Android: place `google-services.json` in `android/app/`
+- iOS: place `GoogleService-Info.plist` in `ios/Runner/`
+- FlutterFire: generate `lib/firebase_options.dart` using the FlutterFire CLI or copy a generated one into `lib/` for local testing
+
+Common service account files (for backend usage) should also be kept out of source control. Example filenames that are ignored:
+
+- `serviceAccountKey.json`
+- `*-service-account.json`
+- `firebase-adminsdk-*.json`
+
+To generate FlutterFire config locally:
+
+```bash
+dart pub global activate flutterfire_cli
+flutterfire configure --project <your-project-id>
+```
+
+After running the CLI, commit-safe files (like `firebase_options.dart`) can be added to your repo if desired, but avoid committing any secret JSON keys.
+
+### Deploy Firestore indexes
+
+If you see "requires an index" errors in logs, deploy indexes with:
+
+```bash
+firebase deploy --only firestore:indexes --project <your-project-id>
+```
+
+Allow the index to finish building in the Firebase Console; queries that previously failed will succeed once the index is ready.
+
 ## Usage
 
 ### Basic Usage

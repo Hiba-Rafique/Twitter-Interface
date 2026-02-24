@@ -12,7 +12,7 @@ class StorageService {
   // ============================================================
   // API CONFIGURATION
   // ============================================================
-  static const String _baseUrl = 'https://storage.buildersolve.com/api/storage';
+  static const String _baseUrl = 'https://api.twitter-interface.com/api/storage';
 
   // ============================================================
   // INITIALIZATION STATE
@@ -23,6 +23,14 @@ class StorageService {
   // ============================================================
   // PUBLIC METHODS
   // ============================================================
+
+  /// Set the company ID for this service
+  /// Call this before performing any storage operations
+  void setCompanyId(String companyId) {
+    _currentCompanyId = companyId;
+    _initialized = false; // Reset initialization for new company
+    debugPrint('[StorageService] Company ID set: $companyId');
+  }
 
   /// Initialize the service
   /// Call this after user login or when companyId becomes available
@@ -61,14 +69,11 @@ class StorageService {
       }
     } catch (e) {
       debugPrint('[StorageService] ❌ Initialization error: $e');
-      rethrow;
+      // Don't rethrow: allow callers to continue even if backend init failed.
+      // Uploads will still be attempted, and uploadFile() handles failures.
+      _initialized = false;
+      return;
     }
-  }
-
-  /// Set company ID and initialize
-  void setCompanyId(String companyId) {
-    _currentCompanyId = companyId;
-    _initialized = false;
   }
 
   /// Upload a file
@@ -116,7 +121,14 @@ class StorageService {
       );
     } catch (e) {
       debugPrint('[StorageService] Upload error: $e');
-      rethrow;
+      // Return a non-throwing failure result so callers can still create posts
+      return StorageResult(
+        success: false,
+        message: e.toString(),
+        key: '',
+        size: null,
+        contentType: contentType,
+      );
     }
   }
 
@@ -136,7 +148,10 @@ class StorageService {
       await initialize();
     }
 
-    if (!_initialized) {
+    // If initialization still failed, allow operations to continue as long as a
+    // company ID is set. We only throw if no company ID is available because
+    // headers are required by the backend.
+    if (!_initialized && _currentCompanyId == null) {
       throw StorageException(
         'StorageService not initialized',
         'Company ID may not be available',

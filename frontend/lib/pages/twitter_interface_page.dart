@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import '../models/post_model.dart';
-import '../services/post_service.dart';
+import '../models/enhanced_post_model.dart';
+import '../services/enhanced_post_service.dart';
 import '../services/storage_service.dart';
 
 class TwitterInterfacePageFixed extends StatefulWidget {
@@ -22,7 +22,7 @@ class TwitterInterfacePageFixed extends StatefulWidget {
 }
 
 class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
-  final PostService _postService = PostService.instance;
+  final EnhancedPostService _postService = EnhancedPostService.instance;
   final StorageService _storageService = StorageService.instance;
   final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _postController = TextEditingController();
@@ -81,7 +81,8 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
     try {
       List<String> imageUrls = [];
       
-      // Upload images if any
+      // Upload images if any. If an upload fails, skip that image but continue.
+      int failedUploads = 0;
       for (int i = 0; i < _selectedImages.length; i++) {
         final result = await _storageService.uploadFile(
           _selectedImages[i],
@@ -89,15 +90,21 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
           folder: 'posts',
           contentType: 'image/jpeg',
         );
-        imageUrls.add(result.key);
+        if (result.success && result.key.isNotEmpty) {
+          imageUrls.add(result.key);
+        } else {
+          failedUploads++;
+          debugPrint('[TwitterInterfacePage] Image upload failed: ${result.message}');
+        }
       }
 
-      // Create post
+      // Create post using enhanced service (subcollections)
       await _postService.createPost(
         userId: widget.userId,
         companyId: widget.companyId,
         content: _postController.text.trim(),
         imageUrls: imageUrls,
+        metadata: {'platform': 'web'},
       );
 
       // Clear form
@@ -107,9 +114,15 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
         _isPosting = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Post created successfully!')),
-      );
+      if (failedUploads > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Post created; $failedUploads image(s) failed to upload')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Post created successfully!')),
+        );
+      }
     } catch (e) {
       setState(() {
         _isPosting = false;
@@ -329,7 +342,7 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
           ),
           // Posts Feed
           Expanded(
-            child: StreamBuilder<List<PostModel>>(
+            child: StreamBuilder<List<EnhancedPostModel>>(
               stream: _postService.getCompanyPosts(widget.companyId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -365,8 +378,9 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
                     return PostCard(
                       post: post,
                       currentUserId: widget.userId,
+                      companyId: widget.companyId,
                       onLike: () => _toggleLike(post.id!),
-                      onComment: () => _showCommentsDialog(post),
+                      onComment: () => _showCommentsDialog(post.id!),
                       onShare: () => _showShareDialog(post),
                     );
                   },
@@ -415,6 +429,7 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
       await _postService.toggleLike(
         postId: postId,
         userId: widget.userId,
+        companyId: widget.companyId,
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -423,17 +438,18 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
     }
   }
 
-  void _showCommentsDialog(PostModel post) {
+  void _showCommentsDialog(String postId) {
     showDialog(
       context: context,
       builder: (context) => CommentsDialog(
-        post: post,
+        postId: postId,
+        companyId: widget.companyId,
         currentUserId: widget.userId,
       ),
     );
   }
 
-  void _showShareDialog(PostModel post) {
+  void _showShareDialog(EnhancedPostModel post) {
     showDialog(
       context: context,
       builder: (context) => ShareDialog(post: post),
@@ -442,23 +458,21 @@ class _TwitterInterfacePageFixedState extends State<TwitterInterfacePageFixed> {
 }
 
 class PostCard extends StatelessWidget {
-  final PostModel post;
+  final EnhancedPostModel post;
   final String currentUserId;
   final VoidCallback onLike;
   final VoidCallback onComment;
   final VoidCallback onShare;
-
+  final String companyId;
   const PostCard({
     Key? key,
     required this.post,
     required this.currentUserId,
+    required this.companyId,
     required this.onLike,
     required this.onComment,
     required this.onShare,
   }) : super(key: key);
-
-  bool get isLiked => post.likes.any((like) => like.userId == currentUserId);
-
   String _getDisplayName(String userId) {
     if (userId.length <= 8) return 'User $userId';
     return 'User ${userId.substring(0, 8)}';
@@ -512,6 +526,7 @@ class PostCard extends StatelessWidget {
                         fontSize: 16,
                       ),
                     ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -579,34 +594,40 @@ class PostCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Like
-                  GestureDetector(
-                    onTap: onLike,
-                    onLongPress: () => _showLikesDialog(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: isLiked ? const Color(0xFF1E40AF).withOpacity(0.1) : Colors.transparent,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isLiked ? Icons.favorite : Icons.favorite_border,
-                            color: isLiked ? Colors.red : const Color(0xFF64748B),
-                            size: 18,
+                  StreamBuilder<bool>(
+                    stream: EnhancedPostService.instance.isPostLiked(post.id, currentUserId, companyId),
+                    builder: (context, snap) {
+                      final liked = snap.data ?? false;
+                      return GestureDetector(
+                        onTap: onLike,
+                        onLongPress: () => _showLikesDialog(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: liked ? const Color(0xFF1E40AF).withOpacity(0.1) : Colors.transparent,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            post.likeCount.toString(),
-                            style: TextStyle(
-                              color: isLiked ? Colors.red : const Color(0xFF64748B),
-                              fontWeight: FontWeight.w500,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                liked ? Icons.favorite : Icons.favorite_border,
+                                color: liked ? Colors.red : const Color(0xFF64748B),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                post.likeCount.toString(),
+                                style: TextStyle(
+                                  color: liked ? Colors.red : const Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   ),
                   // Comment
                   GestureDetector(
@@ -678,7 +699,7 @@ class PostCard extends StatelessWidget {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: CachedNetworkImage(
-          imageUrl: 'https://storage.buildersolve.com/${imageUrls[0]}',
+          imageUrl: 'https://api.twitter-interface.com/storage/${imageUrls[0]}',
           fit: BoxFit.cover,
           height: 200,
           width: double.infinity,
@@ -711,7 +732,7 @@ class PostCard extends StatelessWidget {
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: CachedNetworkImage(
-            imageUrl: 'https://storage.buildersolve.com/${imageUrls[index]}',
+            imageUrl: 'https://api.twitter-interface.com/storage/${imageUrls[index]}',
             fit: BoxFit.cover,
             height: 150,
             placeholder: (context, url) => Container(
@@ -735,18 +756,20 @@ class PostCard extends StatelessWidget {
   void _showLikesDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => LikesDialog(post: post),
+      builder: (context) => LikesDialog(postId: post.id, companyId: companyId),
     );
   }
 }
 
 class CommentsDialog extends StatefulWidget {
-  final PostModel post;
+  final String postId;
+  final String companyId;
   final String currentUserId;
 
   const CommentsDialog({
     Key? key,
-    required this.post,
+    required this.postId,
+    required this.companyId,
     required this.currentUserId,
   }) : super(key: key);
 
@@ -767,16 +790,24 @@ class _CommentsDialogState extends State<CommentsDialog> {
     if (_commentController.text.trim().isEmpty) return;
 
     try {
-      await PostService.instance.addComment(
-        postId: post.id!,
-        userId: currentUserId,
+      await EnhancedPostService.instance.addComment(
+        postId: widget.postId,
+        userId: widget.currentUserId,
+        companyId: widget.companyId,
         content: _commentController.text.trim(),
       );
       _commentController.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Comment added')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding comment: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding comment: $e')),
+        );
+      }
     }
   }
 
@@ -809,37 +840,67 @@ class _CommentsDialogState extends State<CommentsDialog> {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: ListView.builder(
-                itemCount: post.comments.length,
-                itemBuilder: (context, index) {
-                  final comment = post.comments[index];
-                  return CommentWidget(comment: comment);
+              child: StreamBuilder<List<PostComment>>(
+                stream: EnhancedPostService.instance.getComments(widget.postId, widget.companyId),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                      return Center(
+                        child: Text('Failed to load comments: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)),
+                      );
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final comments = snapshot.data ?? [];
+                    if (comments.isEmpty) {
+                      return const Center(
+                        child: Text('No comments yet', style: TextStyle(color: Colors.grey)),
+                      );
+                    }
+                  return SingleChildScrollView(
+                    child: Column(
+                      children: List.generate(
+                        comments.length,
+                        (index) {
+                          final comment = comments[index];
+                          return CommentWidget(
+                            comment: comment,
+                            postId: widget.postId,
+                            companyId: widget.companyId,
+                            currentUserId: widget.currentUserId,
+                          );
+                        },
+                      ),
+                    ),
+                  );
                 },
               ),
             ),
             const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _commentController,
-                    style: const TextStyle(color: Color(0xFFE2E8F0)),
-                    decoration: InputDecoration(
-                      hintText: 'Add a comment...',
-                      hintStyle: const TextStyle(color: Color(0xFF64748B)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                        borderSide: const BorderSide(color: Color(0xFF334155)),
+            SingleChildScrollView(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _commentController,
+                      style: const TextStyle(color: Color(0xFFE2E8F0)),
+                      decoration: InputDecoration(
+                        hintText: 'Add a comment...',
+                        hintStyle: const TextStyle(color: Color(0xFF64748B)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(25),
+                          borderSide: const BorderSide(color: Color(0xFF334155)),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: _addComment,
-                  icon: const Icon(Icons.send, color: Color(0xFF3B82F6)),
-                ),
-              ],
+                  IconButton(
+                    onPressed: _addComment,
+                    icon: const Icon(Icons.send, color: Color(0xFF3B82F6)),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -849,9 +910,18 @@ class _CommentsDialogState extends State<CommentsDialog> {
 }
 
 class CommentWidget extends StatelessWidget {
-  final Comment comment;
+  final PostComment comment;
+  final String postId;
+  final String companyId;
+  final String currentUserId;
 
-  const CommentWidget({Key? key, required this.comment}) : super(key: key);
+  const CommentWidget({
+    Key? key,
+    required this.comment,
+    required this.postId,
+    required this.companyId,
+    required this.currentUserId,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -864,7 +934,7 @@ class CommentWidget extends StatelessWidget {
             radius: 16,
             backgroundColor: const Color(0xFF3B82F6),
             child: Text(
-              comment.userId[0].toUpperCase(),
+              comment.userId.isNotEmpty ? comment.userId[0].toUpperCase() : 'U',
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
@@ -874,7 +944,7 @@ class CommentWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'User ${comment.userId.substring(0, 8)}',
+                  'User ${comment.userId.substring(0, comment.userId.length > 8 ? 8 : comment.userId.length)}',
                   style: const TextStyle(
                     color: Color(0xFFE2E8F0),
                     fontWeight: FontWeight.w600,
@@ -889,6 +959,26 @@ class CommentWidget extends StatelessWidget {
               ],
             ),
           ),
+          // Like button for comment
+          StreamBuilder<bool>(
+            stream: EnhancedPostService.instance.isCommentLiked(postId, comment.id, currentUserId, companyId),
+            builder: (context, snap) {
+              final liked = snap.data ?? false;
+              return IconButton(
+                onPressed: () => EnhancedPostService.instance.toggleCommentLike(
+                  postId: postId,
+                  commentId: comment.id,
+                  userId: currentUserId,
+                  companyId: companyId,
+                ),
+                icon: Icon(
+                  liked ? Icons.favorite : Icons.favorite_border,
+                  color: liked ? Colors.red : const Color(0xFF64748B),
+                  size: 18,
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -896,9 +986,10 @@ class CommentWidget extends StatelessWidget {
 }
 
 class LikesDialog extends StatelessWidget {
-  final PostModel post;
+  final String postId;
+  final String companyId;
 
-  const LikesDialog({Key? key, required this.post}) : super(key: key);
+  const LikesDialog({Key? key, required this.postId, required this.companyId}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -929,27 +1020,37 @@ class LikesDialog extends StatelessWidget {
             ),
             const Divider(color: Color(0xFF334155)),
             Expanded(
-              child: ListView.builder(
-                itemCount: post.likes.length,
-                itemBuilder: (context, index) {
-                  final like = post.likes[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: const Color(0xFF3B82F6),
-                      child: Text(
-                        like.userId[0].toUpperCase(),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    title: Text(
-                      'User ${like.userId.substring(0, 8)}',
-                      style: const TextStyle(color: Color(0xFFE2E8F0)),
-                    ),
-                    subtitle: Text(
-                      'Liked ${timeago.format(like.createdAt)}',
-                      style: const TextStyle(color: Color(0xFF64748B)),
-                    ),
+              child: StreamBuilder<List<PostLike>>(
+                stream: EnhancedPostService.instance.getPostLikes(postId, companyId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                  final likes = snapshot.data ?? [];
+                  if (likes.isEmpty) {
+                    return const Center(child: Text('No likes yet', style: TextStyle(color: Colors.grey)));
+                  }
+                  return ListView.builder(
+                    itemCount: likes.length,
+                    itemBuilder: (context, index) {
+                      final like = likes[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          radius: 20,
+                          backgroundColor: const Color(0xFF3B82F6),
+                          child: Text(
+                            like.userId.isNotEmpty ? like.userId[0].toUpperCase() : 'U',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        title: Text(
+                          'User ${like.userId.substring(0, like.userId.length > 8 ? 8 : like.userId.length)}',
+                          style: const TextStyle(color: Color(0xFFE2E8F0)),
+                        ),
+                        subtitle: Text(
+                          'Liked ${timeago.format(like.createdAt)}',
+                          style: const TextStyle(color: Color(0xFF64748B)),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -962,7 +1063,7 @@ class LikesDialog extends StatelessWidget {
 }
 
 class ShareDialog extends StatelessWidget {
-  final PostModel post;
+  final EnhancedPostModel post;
 
   const ShareDialog({Key? key, required this.post}) : super(key: key);
 
@@ -974,47 +1075,50 @@ class ShareDialog extends StatelessWidget {
         width: MediaQuery.of(context).size.width * 0.6,
         height: MediaQuery.of(context).size.height * 0.4,
         padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Share Post',
-                  style: const TextStyle(
-                    color: Color(0xFFE2E8F0),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 18,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Share Post',
+                    style: const TextStyle(
+                      color: Color(0xFFE2E8F0),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, color: Color(0xFFE2E8F0)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Icon(
-              Icons.share_outlined,
-              size: 64,
-              color: Color(0xFF64748B),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Share functionality coming soon!',
-              style: TextStyle(color: Color(0xFFE2E8F0)),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'This will allow sharing posts to other platforms',
-              style: TextStyle(color: Color(0xFF64748B)),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Color(0xFFE2E8F0)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Icon(
+                Icons.share_outlined,
+                size: 64,
+                color: Color(0xFF64748B),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Share functionality coming soon!',
+                style: TextStyle(color: Color(0xFFE2E8F0)),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'This will allow sharing posts to other platforms',
+                style: TextStyle(color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
         ),
       ),
     );

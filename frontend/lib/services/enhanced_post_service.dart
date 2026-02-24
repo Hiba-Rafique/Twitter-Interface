@@ -8,12 +8,10 @@ class EnhancedPostService {
   static final EnhancedPostService instance = EnhancedPostService._private();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// Get posts collection reference for a specific company
+  /// Get posts collection reference (root-level `posts` collection).
+  /// Documents are scoped by a `companyId` field.
   CollectionReference<Map<String, dynamic>> _getPostsCollection(String companyId) {
-    return _firestore
-        .collection('companies')
-        .doc(companyId)
-        .collection('posts');
+    return _firestore.collection('posts');
   }
 
   /// Get likes subcollection for a post
@@ -74,13 +72,25 @@ class EnhancedPostService {
   /// Uses compound query for company scoping and performance
   Stream<List<EnhancedPostModel>> getCompanyPosts(String companyId) {
     return _getPostsCollection(companyId)
+        .where('companyId', isEqualTo: companyId)
         .where('isDeleted', isEqualTo: false)
         .orderBy('createdAt', descending: true)
         .limit(50) // Pagination for performance
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => EnhancedPostModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          print('[EnhancedPostService] Loaded ${snapshot.docs.length} posts for company: $companyId');
+          return snapshot.docs
+              .map((doc) => EnhancedPostModel.fromFirestore(doc))
+              .toList();
+        })
+        .handleError((error) {
+          print('[EnhancedPostService] ERROR loading posts: $error');
+          if (error.toString().contains('index')) {
+            print('[EnhancedPostService] Index creation required. Go to Firebase Console > Firestore > Indexes');
+            print('[EnhancedPostService] Create composite index: companyId (Ascending), isDeleted (Ascending), createdAt (Descending)');
+          }
+          throw error;
+        });
   }
 
   /// Get posts by specific user within company
@@ -211,7 +221,11 @@ class EnhancedPostService {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => PostComment.fromFirestore(doc))
-            .toList());
+            .toList())
+        .handleError((error) {
+          print('[EnhancedPostService] ERROR loading comments for post $postId: $error');
+          throw error;
+        });
   }
 
   /// Toggle comment like with transaction

@@ -43,3 +43,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase credential files (keep out of source control)
+# Android: google-services.json
+**/google-services.json
+# iOS: GoogleService-Info.plist
+**/GoogleService-Info.plist
+# FlutterFire generated options (if you keep them private)
+**/lib/firebase_options.dart
+# Service account / admin SDK keys
+serviceAccountKey.json
+*-service-account.json
+firebase-adminsdk-*.json

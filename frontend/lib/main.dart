@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'pages/twitter_interface_page_fixed.dart';
+import 'pages/twitter_interface_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase only if not already initialized
+  // Initialize Firebase
   try {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(
@@ -20,11 +21,11 @@ void main() async {
         ),
       );
     }
+    runApp(const MyApp());
   } catch (e) {
     print('Firebase initialization error: $e');
+    runApp(const MyApp());
   }
-  
-  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -85,9 +86,9 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: TwitterInterfacePageFixed(
-        userId: 'user123', // Replace with actual user ID
-        companyId: 'company456', // Replace with actual company ID
+      home: const TwitterInterfacePageFixed(
+        userId: 'user123',
+        companyId: 'company456',
       ),
       debugShowCheckedModeBanner: false,
     );
