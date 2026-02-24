@@ -699,7 +699,7 @@ class PostCard extends StatelessWidget {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: CachedNetworkImage(
-          imageUrl: 'https://api.twitter-interface.com/storage/${imageUrls[0]}',
+          imageUrl: StorageService.instance.getPublicUrl(imageUrls[0]),
           fit: BoxFit.cover,
           height: 200,
           width: double.infinity,
@@ -732,7 +732,7 @@ class PostCard extends StatelessWidget {
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: CachedNetworkImage(
-            imageUrl: 'https://api.twitter-interface.com/storage/${imageUrls[index]}',
+            imageUrl: StorageService.instance.getPublicUrl(imageUrls[index]),
             fit: BoxFit.cover,
             height: 150,
             placeholder: (context, url) => Container(

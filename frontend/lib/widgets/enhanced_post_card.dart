@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../models/enhanced_post_model.dart';
 import '../services/enhanced_post_service.dart';
+import '../services/storage_service.dart';
 
 /// Enhanced Post Card with hover effects and responsive design
 /// Production-ready widget with proper state management
@@ -326,7 +327,7 @@ class _EnhancedPostCardState extends State<EnhancedPostCard>
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: CachedNetworkImage(
-          imageUrl: 'https://api.twitter-interface.com/storage/${imageUrls[0]}',
+          imageUrl: StorageService.instance.getPublicUrl(imageUrls[0]),
           fit: BoxFit.cover,
           height: widget.isWeb ? 300 : 200,
           width: double.infinity,
@@ -364,8 +365,8 @@ class _EnhancedPostCardState extends State<EnhancedPostCard>
       itemBuilder: (context, index) {
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: CachedNetworkImage(
-            imageUrl: 'https://api.twitter-interface.com/storage/${imageUrls[index]}',
+            child: CachedNetworkImage(
+            imageUrl: StorageService.instance.getPublicUrl(imageUrls[index]),
             fit: BoxFit.cover,
             placeholder: (context, url) => Container(
               color: Theme.of(context).colorScheme.surfaceVariant,

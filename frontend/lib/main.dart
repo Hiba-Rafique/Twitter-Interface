@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'pages/twitter_interface_page.dart';
+import 'services/storage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,11 @@ void main() async {
         ),
       );
     }
+    // Configure StorageService for local development backend and R2 access
+    StorageService.instance.setBaseUrl('http://localhost:3000');
+    StorageService.instance.setR2Config('7e522f48fc9caa30e3d2f43cc80b789c', 'twitter-interface');
+    StorageService.instance.setCompanyId('company456');
+
     runApp(const MyApp());
   } catch (e) {
     print('Firebase initialization error: $e');

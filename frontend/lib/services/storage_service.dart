@@ -12,7 +12,15 @@ class StorageService {
   // ============================================================
   // API CONFIGURATION
   // ============================================================
-  static const String _baseUrl = 'https://api.twitter-interface.com/api/storage';
+  // Default backend URL (production). You can override this at runtime
+  // with `setBaseUrl()` for local testing (e.g. http://localhost:3000).
+  String _baseUrl = 'https://api.twitter-interface.com/api/storage';
+
+  // Optional R2 direct info (used to build public URLs). Not required for uploads
+  // because uploads go through the backend. If you have a public R2 setup,
+  // set these with `setR2Config(accountId, bucket)` to construct public URLs.
+  String? _r2AccountId;
+  String? _r2Bucket;
 
   // ============================================================
   // INITIALIZATION STATE
@@ -30,6 +38,20 @@ class StorageService {
     _currentCompanyId = companyId;
     _initialized = false; // Reset initialization for new company
     debugPrint('[StorageService] Company ID set: $companyId');
+  }
+
+  /// Override backend base url at runtime (useful for local testing)
+  void setBaseUrl(String baseUrl) {
+    _baseUrl = baseUrl;
+    debugPrint('[StorageService] Base URL set: $_baseUrl');
+  }
+
+  /// Optionally set R2 account and bucket so `getPublicUrl()` can build
+  /// an object URL (may not be publicly accessible depending on bucket policy).
+  void setR2Config(String accountId, String bucket) {
+    _r2AccountId = accountId;
+    _r2Bucket = bucket;
+    debugPrint('[StorageService] R2 config set: account=$_r2AccountId bucket=$_r2Bucket');
   }
 
   /// Initialize the service
@@ -50,6 +72,7 @@ class StorageService {
 
     try {
       debugPrint('[StorageService] Initializing for company: $companyId');
+      debugPrint('[StorageService] Current baseUrl: $_baseUrl');
       
       // Call backend initialize endpoint (optional - backend auto-initializes)
       final response = await http.post(
@@ -90,6 +113,7 @@ class StorageService {
 
     try {
       final uri = Uri.parse('$_baseUrl/upload');
+      debugPrint('[StorageService] Upload URI: $uri');
       final request = http.MultipartRequest('POST', uri);
       
       // Add headers
@@ -163,6 +187,32 @@ class StorageService {
     return {
       'x-company-id': companyId,
     };
+  }
+
+  /// Build a public URL for a stored object key when R2 account and bucket
+  /// are configured. This may not be accessible publicly without a Worker
+  /// or proper bucket settings; use it as a convenience for testing.
+  String getPublicUrl(String key) {
+    if (key.isEmpty) return '';
+
+    // Prefer backend proxy for local development (avoids R2 CORS issues).
+    final lowerBase = _baseUrl.toLowerCase();
+    if (lowerBase.contains('localhost') || lowerBase.contains('127.0.0.1')) {
+      return '$_baseUrl/files/$key';
+    }
+
+    // If baseUrl is set to a non-production host, prefer the backend proxy.
+    if (_baseUrl.startsWith('http') && !_baseUrl.contains('api.twitter-interface.com')) {
+      return '$_baseUrl/files/$key';
+    }
+
+    // Otherwise, prefer direct R2 URL when configured.
+    if (_r2AccountId != null && _r2Bucket != null) {
+      return 'https://${_r2AccountId}.r2.cloudflarestorage.com/${_r2Bucket}/$key';
+    }
+
+    // Final fallback: backend files route
+    return '$_baseUrl/files/$key';
   }
 }
 
